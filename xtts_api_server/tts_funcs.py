@@ -14,7 +14,7 @@ from xtts_api_server.modeldownloader import download_model,check_tts_version
 from loguru import logger
 from datetime import datetime
 import os
-import time 
+import time
 import re
 import json
 import socket
@@ -69,7 +69,7 @@ class TTSWrapper:
         self.device = 'cpu' if lowvram else (self.cuda if torch.cuda.is_available() else "cpu")
         self.lowvram = lowvram  # Store whether we want to run in low VRAM mode.
 
-        self.latents_cache = {} 
+        self.latents_cache = {}
 
         self.model_source = model_source
         self.model_version = model_version
@@ -89,7 +89,7 @@ class TTSWrapper:
         self.cache_file_path = os.path.join(output_folder, "cache.json")
 
         self.is_official_model = True
-        
+
         if self.enable_cache_results:
             # Reset the contents of the cache file at each initialization.
             with open(self.cache_file_path, 'w') as cache_file:
@@ -109,10 +109,10 @@ class TTSWrapper:
     def get_models_list(self):
         # Fetch all entries in the directory given by self.model_folder
         entries = os.listdir(self.model_folder)
-        
+
         # Filter out and return only directories
         return [name for name in entries if os.path.isdir(os.path.join(self.model_folder, name))]
-        
+
 
     def get_wav_header(self, channels:int=1, sample_rate:int=24000, width:int=2) -> bytes:
         wav_buf = io.BytesIO()
@@ -164,7 +164,7 @@ class TTSWrapper:
             print("I/O error occurred while updating the cache: ", str(e))
         except json.JSONDecodeError as e:
             print("JSON decode error occurred while updating the cache: ", str(e))
-            
+
     # LOAD FUNCS
     def load_model(self,load=True):
         if self.model_source == "api":
@@ -182,16 +182,16 @@ class TTSWrapper:
             self.model = TTS(model_path=checkpoint_dir,config_path=config_path).to(self.device)
 
         if self.model_source != "api" and self.model_source != "apiManual":
-           is_official_model = False
- 
+           is_official_model = False ## commented to avoid reloading the model if is it already loaded
+           #is_official_model = self.isModelOfficial(self.model_version)
            self.load_local_model(load = is_official_model)
            if self.lowvram == False:
              # Due to the fact that we create latents on the cpu and load them from the cuda we get an error
              logger.info("Pre-create latents for all current speakers")
-             self.create_latents_for_all() 
-          
+             self.create_latents_for_all()
+
         logger.info("Model successfully loaded ")
-    
+
     def load_local_model(self,load=True):
         this_model_dir = Path(self.model_folder)
 
@@ -203,9 +203,11 @@ class TTSWrapper:
         config_path = this_model_dir /  f'{self.model_version}' / 'config.json'
         checkpoint_dir = this_model_dir / f'{self.model_version}'
 
+
         config.load_json(str(config_path))
-        
+
         self.model = Xtts.init_from_config(config)
+        print(f"Loading checkpoints from {checkpoint_dir} with deepspeed {self.deepspeed} and config {config}")
         self.model.load_checkpoint(config,use_deepspeed=self.deepspeed, checkpoint_dir=str(checkpoint_dir))
         self.model.to(self.device)
 
@@ -216,7 +218,7 @@ class TTSWrapper:
         if(model_name == self.model_version):
             raise InvalidSettingsError("The model with this name is already loaded in memory")
             return
-        
+
         # Check if the model is in the list at all
         if(model_name not in model_list):
             raise InvalidSettingsError(f"A model with `{model_name}` name is not in the models folder, the current available models: {model_list}")
@@ -226,7 +228,7 @@ class TTSWrapper:
         self.model = ""
         torch.cuda.empty_cache()
         logger.info("Model successfully unloaded from memory")
-        
+
         # Start load model
         logger.info(f"Start loading {model_name} model")
         self.model_version = model_name
@@ -234,7 +236,7 @@ class TTSWrapper:
           self.load_local_model()
         else:
           self.load_model()
-          
+
         logger.info(f"Model successfully loaded")
 
     # LOWVRAM FUNCS
@@ -301,27 +303,27 @@ class TTSWrapper:
     def set_tts_settings(self, temperature, speed, length_penalty,
                          repetition_penalty, top_p, top_k, enable_text_splitting, stream_chunk_size):
         # Validate each parameter and raise an exception if any checks fail.
-        
+
         # Check temperature
         if not (0.01 <= temperature <= 1):
             raise InvalidSettingsError("Temperature must be between 0.01 and 1.")
-        
+
         # Check speed
         if not (0.2 <= speed <= 2):
             raise InvalidSettingsError("Speed must be between 0.2 and 2.")
-        
+
         # Check length_penalty (no explicit range specified)
         if not isinstance(length_penalty, float):
             raise InvalidSettingsError("Length penalty must be a floating point number.")
-        
+
         # Check repetition_penalty
         if not (0.1 <= repetition_penalty <= 10.0):
             raise InvalidSettingsError("Repetition penalty must be between 0.1 and 10.0.")
-        
+
         # Check top_p
         if not (0.01 <= top_p <= 1):
             raise InvalidSettingsError("Top_p must be between 0.01 and 1 and must be a float.")
-        
+
         # Check top_k
         if not (1 <= top_k <= 100):
             raise InvalidSettingsError("Top_k must be an integer between 1 and 100.")
@@ -329,11 +331,11 @@ class TTSWrapper:
         # Check stream_chunk_size
         if not (20 <= stream_chunk_size <= 400):
             raise InvalidSettingsError("Stream chunk size must be an integer between 20 and 400.")
-        
+
         # Check enable_text_splitting
         if not isinstance(enable_text_splitting, bool):
             raise InvalidSettingsError("Enable text splitting must be either True or False.")
-        
+
         # All validations passed - proceed to apply settings.
         self.tts_settings = {
             "temperature": temperature,
@@ -366,7 +368,7 @@ class TTSWrapper:
             full_path = os.path.join(self.speaker_folder,f)
             if os.path.isdir(full_path):
                 # multi-sample voice
-                subdir_files = self.get_wav_files(full_path) 
+                subdir_files = self.get_wav_files(full_path)
                 if len(subdir_files) == 0:
                     # no wav files in directory
                     continue
@@ -383,7 +385,7 @@ class TTSWrapper:
 
             elif f.endswith('.wav'):
                 speaker_name = os.path.splitext(f)[0]
-                speaker_wav = full_path 
+                speaker_wav = full_path
                 preview = f
                 speakers.append({
                         'speaker_name': speaker_name,
@@ -394,14 +396,14 @@ class TTSWrapper:
 
     def get_speakers(self):
         """ Gets available speakers """
-        speakers = [ s['speaker_name'] for s in self._get_speakers() ] 
+        speakers = [ s['speaker_name'] for s in self._get_speakers() ]
         return speakers
 
     def get_local_ip(self):
       try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(('10.255.255.255', 1))
-            IP = s.getsockname()[0] 
+            IP = s.getsockname()[0]
       except Exception as e:
         print(f"Failed to obtain a local IP: {e}")
         return None
@@ -464,7 +466,7 @@ class TTSWrapper:
             **self.tts_settings, # Expands the object with the settings and applies them for generation
             stream_chunk_size=self.stream_chunk_size,
         )
-        
+
         for chunk in chunks:
             if isinstance(chunk, list):
                 chunk = torch.cat(chunk, dim=0)
@@ -527,7 +529,7 @@ class TTSWrapper:
                 speaker_wav = os.path.join(self.speaker_folder, speaker_name_or_path)
         else:
             # it's a speaker name
-            full_path = os.path.join(self.speaker_folder, speaker_name_or_path) 
+            full_path = os.path.join(self.speaker_folder, speaker_name_or_path)
             wav_file = f"{full_path}.wav"
             if os.path.isdir(full_path):
                 # multi-sample speaker
@@ -598,7 +600,7 @@ class TTSWrapper:
                     self.local_generation(clear_text,speaker_name_or_path,speaker_wav,language,output_file)
             else:
                 self.api_generation(clear_text,speaker_wav,language,output_file)
-            
+
             self.switch_model_device() # Unload to CPU if lowram ON
 
             # After generation completes successfully...
@@ -607,9 +609,3 @@ class TTSWrapper:
 
         except Exception as e:
             raise e  # Propagate exceptions for endpoint handling.
-
-        
-
-
-
-        

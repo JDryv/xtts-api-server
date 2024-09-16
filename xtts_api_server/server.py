@@ -64,19 +64,19 @@ if STREAM_MODE or STREAM_MODE_IMPROVE:
 
     if STREAM_MODE_IMPROVE:
         logger.info("You launched an improved version of streaming, this version features an improved tokenizer and more context when processing sentences, which can be good for complex languages like Chinese")
-        
+
     model_path = XTTS.model_folder
-    
+
     engine = CoquiEngine(specific_model=MODEL_VERSION,use_deepspeed=DEEPSPEED,local_models_path=str(model_path))
     stream = TextToAudioStream(engine)
 else:
   logger.info(f"Model: '{version_string}' starts to load,wait until it loads")
-  XTTS.load_model() 
+  XTTS.load_model()
 
 if USE_CACHE:
     logger.info("You have enabled caching, this option enables caching of results, your results will be saved and if there is a repeat request, you will get a file instead of generation")
 
-# Add CORS middleware 
+# Add CORS middleware
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -132,14 +132,14 @@ class TTSSettingsRequest(BaseModel):
 
 class SynthesisRequest(BaseModel):
     text: str
-    speaker_wav: str 
+    speaker_wav: str
     language: str
 
 class SynthesisFileRequest(BaseModel):
     text: str
-    speaker_wav: str 
+    speaker_wav: str
     language: str
-    file_name_or_path: str  
+    file_name_or_path: str
 
 @app.get("/speakers_list")
 def get_speakers():
@@ -174,10 +174,10 @@ def get_tts_settings():
 
 @app.get("/sample/{file_name:path}")
 def get_sample(file_name: str):
-    # A fix for path traversal vulenerability. 
+    # A fix for path traversal vulenerability.
     # An attacker may summon this endpoint with ../../etc/passwd and recover the password file of your PC (in linux) or access any other file on the PC
     if ".." in file_name:
-        raise HTTPException(status_code=404, detail=".. in the file name! Are you kidding me?") 
+        raise HTTPException(status_code=404, detail=".. in the file name! Are you kidding me?")
     file_path = os.path.join(XTTS.speaker_folder, file_name)
     if os.path.isfile(file_path):
         return FileResponse(file_path, media_type="audio/wav")
@@ -208,7 +208,7 @@ def switch_model(modelReq: ModelNameRequest):
     try:
         XTTS.switch_model(modelReq.model_name)
         return {"message": f"Model switched to {modelReq.model_name}"}
-    except InvalidSettingsError as e:  
+    except InvalidSettingsError as e:
         logger.error(e)
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -217,7 +217,7 @@ def set_tts_settings_endpoint(tts_settings_req: TTSSettingsRequest):
     try:
         XTTS.set_tts_settings(**tts_settings_req.dict())
         return {"message": "Settings successfully applied"}
-    except InvalidSettingsError as e: 
+    except InvalidSettingsError as e:
         logger.error(e)
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -231,7 +231,7 @@ async def tts_stream(request: Request, text: str = Query(), speaker_wav: str = Q
     if language.lower() not in supported_languages:
         raise HTTPException(status_code=400,
                             detail="Language code sent is either unsupported or misspelled.")
-            
+
     async def generator():
         chunks = XTTS.process_tts_to_file(
             text=text,
@@ -269,7 +269,7 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 
             engine.set_voice(speaker_wav)
             engine.language = request.language.lower()
-           
+
             # Start streaming, works only on your local computer.
             stream.feed(request.text)
             play_stream(stream,language)
